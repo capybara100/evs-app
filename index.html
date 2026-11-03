@@ -1805,7 +1805,7 @@ const topsisScore = ranked[0].topsisScore;
  * @param {string} season current season
  * @returns {{ tip, reason, gasDrift, elecDrift }|null}
  */
-function dailyRecommendation(expectedSeries, readings, tips, season) {
+function dailyRecommendation(expectedSeries, readings, tips, season, household) {
   // A screen must never fail to render because advice could not be chosen.
   if (!expectedSeries?.length || !readings?.length || !tips?.length) return null;
 

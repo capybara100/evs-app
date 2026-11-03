@@ -1,0 +1,79 @@
+household_id,has_gas,has_elec,returned_kwh_2013,annual_gas_m3,annual_elec_kwh,gas_missing_share,elec_missing_share,included,excluded_reason,woning_type,bouwjaar_band,gezinssituatie,has_typing
+Klant 1,True,True,25.166,2424.982,3891.613,0.0,0.016,False,solar panels (return delivery),,,,False
+Klant 2,True,True,0.0,2700.1,1873.544,0.003,0.003,True,,,,,False
+Klant 3,True,True,0.0,485.628,3295.622,0.132,0.036,False,too many missing gas hours,2 onder 1 kap,Voor 1940,Alleenstaande,True
+Klant 4,True,True,0.0,613.666,2127.91,0.003,0.003,True,,,,,False
+Klant 5,True,True,0.0,1265.246,2336.712,0.0,0.0,True,,,,,False
+Klant 6,True,True,0.0,1472.072,2839.852,0.006,0.008,True,,2 onder 1 kap,Voor 1940,Paar zonder kinderen,True
+Klant 8,True,True,0.0,1800.46,5185.871,0.0,0.0,True,,,,,False
+Klant 9,True,True,0.0,1735.272,3590.394,0.0,0.074,False,too many missing elec intervals,Rijtjeswoning,1940 - 1979,Paar zonder kinderen,True
+Klant 10,True,True,0.0,1824.919,1569.263,0.0,0.0,True,,,,,False
+Klant 11,True,True,0.0,1572.097,3239.939,0.0,0.0,True,,,,,False
+Klant 13,True,True,0.0,624.588,1549.533,0.006,0.0,True,,Rijtjeswoning,1940 - 1979,Gezin met kinderen,True
+Klant 14,True,True,0.0,1808.858,4443.765,0.003,0.0,True,,,,,False
+Klant 15,True,True,0.0,616.304,2276.194,0.0,0.0,True,,Rijtjeswoning,1940 - 1979,Paar zonder kinderen,True
+Klant 16,True,True,0.0,1116.354,1932.064,0.0,0.0,True,,,,,False
+Klant 17,True,True,0.0,26.097,2009.216,0.0,0.003,False,very low gas use,Rijtjeswoning,1940 - 1979,Paar zonder kinderen,True
+Klant 18,True,True,0.0,1052.448,1057.042,0.0,0.0,True,,2 onder 1 kap,1940 - 1979,Alleenstaande,True
+Klant 19,True,True,0.0,1075.706,3543.375,0.0,0.0,True,,2 onder 1 kap,1980 - heden,Gezin met kinderen,True
+Klant 20,True,True,0.0,22.729,2623.24,0.0,0.0,False,very low gas use,Rijtjeswoning,1940 - 1979,Paar zonder kinderen,True
+Klant 21,True,True,117.15,791.755,2817.964,0.0,0.068,False,solar panels (return delivery); too many missing elec intervals,Rijtjeswoning,1980 - heden,Gezin met kinderen,True
+Klant 22,True,True,0.0,1405.613,4724.542,0.0,0.0,True,,Rijtjeswoning,1940 - 1979,Paar zonder kinderen,True
+Klant 23,True,True,0.0,32.987,2153.14,0.003,0.0,False,very low gas use,Rijtjeswoning,1940 - 1979,Gezin met kinderen,True
+Klant 24,True,True,0.0,1166.691,2251.257,0.0,0.0,True,,,,,False
+Klant 25,True,True,0.0,1479.414,2922.014,0.0,0.0,True,,2 onder 1 kap,1980 - heden,Gezin met kinderen,True
+Klant 26,True,True,0.0,586.601,999.069,0.0,0.0,True,,Appartement,1980 - heden,Alleenstaande,True
+Klant 27,True,True,0.0,0.0,3895.353,0.638,0.0,False,very low gas use; too many missing gas hours,,,,False
+Klant 28,True,True,0.0,848.752,2807.794,0.0,0.0,True,,,,,False
+Klant 29,True,True,0.0,1311.292,2774.34,0.0,0.003,True,,Overige,1980 - heden,Gezin met kinderen,True
+Klant 30,True,True,628.987,1526.376,2220.009,0.0,0.136,False,solar panels (return delivery); too many missing elec intervals,Rijtjeswoning,1940 - 1979,Paar zonder kinderen,True
+Klant 31,True,True,0.0,2784.472,3175.596,0.107,0.107,False,too many missing gas hours; too many missing elec intervals,Rijtjeswoning,Voor 1940,Gezin met kinderen,True
+Klant 32,True,True,0.0,1642.95,3355.686,0.0,0.0,True,,2 onder 1 kap,1980 - heden,Paar zonder kinderen,True
+Klant 33,True,True,0.0,1136.323,6563.783,0.0,0.0,True,,2 onder 1 kap,1940 - 1979,Alleenstaande,True
+Klant 34,True,True,0.0,1707.597,3688.592,0.0,0.0,True,,Rijtjeswoning,1940 - 1979,Gezin met kinderen,True
+Klant 35,True,True,0.0,2443.005,5689.084,0.0,0.003,True,,2 onder 1 kap,1940 - 1979,Gezin met kinderen,True
+Klant 36,True,True,0.0,89.305,4730.044,0.003,0.0,False,very low gas use,,,,False
+Klant 37,True,True,0.0,2239.011,2208.467,0.0,0.0,True,,,,,False
+Klant 38,True,True,0.0,2303.07,5731.034,0.0,0.0,True,,2 onder 1 kap,1980 - heden,Paar zonder kinderen,True
+Klant 39,True,True,0.0,1367.888,3858.024,0.0,0.0,True,,Rijtjeswoning,1980 - heden,Alleenstaande,True
+Klant 40,True,True,0.0,2864.879,10022.256,0.0,0.003,True,,,,,False
+Klant 41,True,True,0.0,1606.496,3079.318,0.0,0.0,True,,,,,False
+Klant 42,True,True,0.0,1813.104,4261.475,0.003,0.003,True,,2 onder 1 kap,1940 - 1979,Gezin met kinderen,True
+Klant 43,True,True,0.0,937.967,1901.485,0.0,0.0,True,,2 onder 1 kap,1940 - 1979,Alleenstaande,True
+Klant 44,True,True,0.0,1909.449,3189.107,0.0,0.0,True,,,,,False
+Klant 45,True,True,0.0,1126.638,3658.031,0.0,0.0,True,,,,,False
+Klant 46,True,True,0.0,1872.765,2258.235,0.0,0.0,True,,2 onder 1 kap,1980 - heden,Paar zonder kinderen,True
+Klant 47,True,True,3443.407,2134.476,3806.38,0.0,0.199,False,solar panels (return delivery); too many missing elec intervals,Vrijstaande woning,1980 - heden,Alleenstaande,True
+Klant 48,True,True,2648.928,1088.144,1847.922,0.003,0.131,False,solar panels (return delivery); too many missing elec intervals,2 onder 1 kap,1980 - heden,Gezin met kinderen,True
+Klant 49,True,True,0.0,3036.82,2065.18,0.0,0.0,True,,,,,False
+Klant 50,True,True,0.0,1637.749,3851.819,0.0,0.0,True,,,,,False
+Klant 51,True,True,0.0,2136.736,3488.381,0.0,0.0,True,,,,,False
+Klant 52,True,True,0.0,1658.675,6080.981,0.0,0.0,True,,2 onder 1 kap,1980 - heden,Gezin met kinderen,True
+Klant 53,True,True,0.006,1883.086,5500.753,0.0,0.0,True,,Rijtjeswoning,1940 - 1979,Paar zonder kinderen,True
+Klant 55,True,True,1875.044,2257.315,4180.095,0.0,0.152,False,solar panels (return delivery); too many missing elec intervals,2 onder 1 kap,,,False
+Klant 57,True,True,0.0,1469.527,1713.893,0.0,0.0,True,,,,,False
+Klant 58,True,True,0.0,886.994,4325.715,0.0,0.0,True,,2 onder 1 kap,1940 - 1979,Paar zonder kinderen,True
+Klant 59,True,True,0.0,1503.869,2138.715,0.0,0.349,False,too many missing elec intervals,,,,False
+Klant 60,True,True,0.006,1214.858,2954.062,0.0,0.0,True,,Vrijstaande woning,1940 - 1979,Paar zonder kinderen,True
+Klant 61,True,True,0.0,2952.358,5151.023,0.0,0.0,True,,Rijtjeswoning,1980 - heden,Paar zonder kinderen,True
+Klant 62,True,True,0.0,1618.954,3598.725,0.0,0.0,True,,Vrijstaande woning,1940 - 1979,Paar zonder kinderen,True
+Klant 63,True,True,3826.972,1856.324,1711.853,0.0,0.336,False,solar panels (return delivery); too many missing elec intervals,Vrijstaande woning,1940 - 1979,Paar zonder kinderen,True
+Klant 64,True,True,0.0,1749.429,4846.287,0.003,0.0,True,,,,,False
+Klant 65,True,True,0.0,1805.029,3756.309,0.0,0.0,True,,,,,False
+Klant 66,True,True,0.0,1433.73,2096.422,0.0,0.0,True,,,,,False
+Klant 67,True,True,0.0,1429.777,4019.596,0.0,0.0,True,,,,,False
+Klant 68,True,True,0.005,1437.73,2076.856,0.0,0.0,True,,2 onder 1 kap,Voor 1940,Paar zonder kinderen,True
+Klant 69,True,True,2390.022,1530.766,2137.212,0.0,0.22,False,solar panels (return delivery); too many missing elec intervals,,,,False
+Klant 70,True,True,0.0,828.988,2863.014,0.0,0.0,True,,2 onder 1 kap,1940 - 1979,Alleenstaande,True
+Klant 71,True,True,0.0,2162.351,11172.45,0.003,0.003,True,,Vrijstaande woning,Voor 1940,Gezin met kinderen,True
+Klant 72,True,True,0.0,1169.871,2801.395,0.003,0.003,True,,,,,False
+Klant 73,True,True,0.0,1548.171,5341.279,0.0,0.0,True,,,,,False
+Klant 74,True,True,0.0,747.253,1807.465,0.003,0.003,True,,,,,False
+Klant 75,True,False,,0.0,,0.961,,False,no electricity data; very low gas use; too many missing gas hours,Rijtjeswoning,1980 - heden,Paar zonder kinderen,True
+Klant 76,True,True,0.0,1605.402,5248.498,0.0,0.0,True,,2 onder 1 kap,1940 - 1979,Paar zonder kinderen,True
+Klant 77,True,True,0.0,1310.955,4627.136,0.0,0.0,True,,,,,False
+Klant 78,True,True,0.0,985.621,2297.154,0.0,0.0,True,,,,,False
+Klant 79,True,True,1.859,4052.525,8206.449,0.0,0.0,True,,Vrijstaande woning,Voor 1940,Gezin met kinderen,True
+Klant 80,True,True,1172.573,3443.621,6196.278,0.0,0.097,False,solar panels (return delivery); too many missing elec intervals,,,,False
+Klant 81,True,True,0.0,1340.836,1988.774,0.0,0.013,True,,Rijtjeswoning,1980 - heden,Alleenstaande,True
+Klant 82,True,True,0.0,858.091,2544.397,0.082,0.089,False,too many missing gas hours; too many missing elec intervals,Rijtjeswoning,1980 - heden,Paar zonder kinderen,True

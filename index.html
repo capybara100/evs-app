@@ -382,6 +382,39 @@ button.stage:focus-visible { outline: 3px solid var(--green-600); outline-offset
              background: var(--surface); color: var(--ink); }
 .notes-box:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
+/* --- Event detection tab --- */
+.evt-controls { display: grid; gap: 10px; }
+.evt-control { display: flex; flex-direction: column; gap: 4px; font-size: 16px; }
+.evt-control select, .evt-control input { font: inherit; padding: 8px; border: 2px solid var(--green-600);
+  border-radius: 8px; background: var(--surface); color: var(--ink); }
+.evt-actions { display: flex; gap: 8px; margin-top: 10px; }
+.evt-actions .btn { min-height: 42px; font-size: 16px; }
+.evt-status { padding: 10px 12px; border-radius: 8px; background: var(--green-100); font-size: 15px; }
+.evt-status.warn { background: #fdf3d7; border-left: 4px solid var(--accent); }
+.evt-chart { overflow-x: auto; }
+.evt-chart svg { display: block; width: 100%; min-width: 300px; height: 180px; }
+.evt-legend { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 13px; color: #4a5a50; }
+.evt-key { display: inline-flex; align-items: center; gap: 4px; }
+.evt-swatch { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+.evt-table-wrap { overflow-x: auto; }
+.evt-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.evt-table th, .evt-table td { padding: 8px 5px; text-align: left; border-bottom: 1px solid #d3ddd6; }
+.evt-table th button { border: none; background: none; padding: 0; font: inherit; font-weight: 700; cursor: pointer; color: var(--green-900); }
+.evt-table tr { cursor: pointer; }
+.evt-table tr.evt-selected { background: #fdf3d7; outline: 2px solid var(--accent); outline-offset: -2px; }
+.evt-muted { color: #4a5a50; font-size: 14px; }
+.evt-metric-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.evt-metric { padding: 11px 12px; background: var(--surface); border-radius: 8px; }
+.evt-metric strong, .evt-metric span { display: block; }
+.evt-metric strong { color: var(--green-900); font-size: 17px; margin-bottom: 4px; }
+.evt-metric span { font-size: 13px; }
+.evt-evaluation-explainer { padding: 10px 12px; background: var(--surface); border-left: 3px solid var(--green-600); border-radius: 6px; }
+.evt-evaluation-meta { margin: 10px 0; font-size: 14px; color: #4a5a50; }
+.evt-quality { margin-top: 10px; }
+.evt-quality ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; color: #4a5a50; }
+.evt-quality li { margin: 4px 0; }
+.evt-evaluate { width: 100%; margin-top: 10px; }
+
 /* Watt beside the phone rather than over it, once there is room. */
 .tour-bubble[data-side="true"] { right: auto; width: 340px; }
 .tour-bubble[data-side="false"] { right: auto; width: 366px; max-width: calc(100vw - 24px); }
@@ -1521,6 +1554,247 @@ function healthMessage(health, lang) {
 
 /** Days of recent history the choice looks at. A week smooths out one odd day. */
 const RECENT_DAYS = 7;
+function tipEuroPerYear(tip, household) {
+  if (tip.euroPerPersonPerYear != null) {
+    const occupants = household?.occupants ?? 1;
+
+    return tip.euroPerPersonPerYear * occupants;
+  }
+
+  return tip.euroPerYear ?? 0;
+}
+function chooseEventForAdvice(events) {
+  if (!events?.length) {
+    return null;
+  }
+
+  return [...events].sort(
+    (a, b) => new Date(b.start) - new Date(a.start)
+  )[0];
+}
+const TOPSIS_WEIGHTS = Object.freeze({
+  saving: 0.5,
+  ease: 0.3,
+  priority: 0.2
+});
+
+function rankTipsTOPSIS(tips, household) {
+  if (!tips?.length) {
+    return [];
+  }
+
+  // If there is only one applicable tip,
+  // there is nothing to compare it against.
+  if (tips.length === 1) {
+    return [{
+      tip: tips[0],
+      topsisScore: 1
+    }];
+  }
+
+  // Step 1: Create the decision matrix
+  const rows = tips.map((tip) => ({
+    tip,
+
+    saving:
+      tip.savingVerified === false
+        ? 0
+        : tipEuroPerYear(tip, household),
+
+    ease: tip.ease ?? 0,
+    priority: tip.priority ?? 0
+  }));
+
+  // Step 2: Calculate normalization values
+  const savingNorm = Math.sqrt(
+    rows.reduce(
+      (sum, row) => sum + row.saving ** 2,
+      0
+    )
+  );
+
+  const easeNorm = Math.sqrt(
+    rows.reduce(
+      (sum, row) => sum + row.ease ** 2,
+      0
+    )
+  );
+
+  const priorityNorm = Math.sqrt(
+    rows.reduce(
+      (sum, row) => sum + row.priority ** 2,
+      0
+    )
+  );
+
+  // Step 3: Normalize and apply the weights
+  const weighted = rows.map((row) => ({
+    ...row,
+
+    savingScore:
+      savingNorm === 0
+        ? 0
+        : (row.saving / savingNorm) *
+          TOPSIS_WEIGHTS.saving,
+
+    easeScore:
+      easeNorm === 0
+        ? 0
+        : (row.ease / easeNorm) *
+          TOPSIS_WEIGHTS.ease,
+
+    priorityScore:
+      priorityNorm === 0
+        ? 0
+        : (row.priority / priorityNorm) *
+          TOPSIS_WEIGHTS.priority
+  }));
+
+  // Step 4: Find the ideal best values
+  const idealBest = {
+    saving: Math.max(
+      ...weighted.map((row) => row.savingScore)
+    ),
+
+    ease: Math.max(
+      ...weighted.map((row) => row.easeScore)
+    ),
+
+    priority: Math.max(
+      ...weighted.map((row) => row.priorityScore)
+    )
+  };
+
+  // Step 5: Find the ideal worst values
+  const idealWorst = {
+    saving: Math.min(
+      ...weighted.map((row) => row.savingScore)
+    ),
+
+    ease: Math.min(
+      ...weighted.map((row) => row.easeScore)
+    ),
+
+    priority: Math.min(
+      ...weighted.map((row) => row.priorityScore)
+    )
+  };
+
+  // Step 6: Calculate distance from best and worst
+  const ranked = weighted.map((row) => {
+    const distanceBest = Math.sqrt(
+      (row.savingScore - idealBest.saving) ** 2 +
+      (row.easeScore - idealBest.ease) ** 2 +
+      (row.priorityScore - idealBest.priority) ** 2
+    );
+
+    const distanceWorst = Math.sqrt(
+      (row.savingScore - idealWorst.saving) ** 2 +
+      (row.easeScore - idealWorst.ease) ** 2 +
+      (row.priorityScore - idealWorst.priority) ** 2
+    );
+
+    const denominator =
+      distanceBest + distanceWorst;
+
+    // Step 7: TOPSIS closeness score
+    const topsisScore =
+      denominator === 0
+        ? 0
+        : distanceWorst / denominator;
+
+    return {
+      tip: row.tip,
+      topsisScore
+    };
+  });
+
+  // Highest score = best recommendation
+  return ranked.sort(
+    (a, b) => b.topsisScore - a.topsisScore
+  );
+}
+
+function selectTipForEvent(event, tips, season, underHeating, household) {
+  if (!event || !tips?.length) {
+    return null;
+  }
+
+  const eventType = event.type;
+
+  let candidates = tips.filter((tip) => {
+    // Tip must belong to the detected event
+    if (
+      tip.conditions?.event &&
+      tip.conditions.event !== eventType
+    ) {
+      return false;
+    }
+
+    // Never recommend reducing heating when already under-heating
+    if (underHeating && tip.heating) {
+      return false;
+    }
+
+    // Respect seasonal rules
+    if (
+      tip.conditions?.seasons &&
+      !tip.conditions.seasons.includes(season)
+    ) {
+      return false;
+    }
+    if (
+      tip.conditions?.energyLabels &&
+      !tip.conditions.energyLabels.includes(
+        household?.energyLabel
+      )
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  if (!candidates.length) {
+    return null;
+  }
+
+ const ranked = rankTipsTOPSIS(
+  candidates,
+  household
+);
+
+const selectedTip = ranked[0].tip;
+const topsisScore = ranked[0].topsisScore;
+
+  const reason =
+    underHeating
+      ? 'comfort'
+      : eventType === 'high_gas'
+        ? 'gas'
+        : eventType === 'high_electricity'
+          ? 'elec'
+          : 'general';
+
+  return {
+  tip: selectedTip,
+
+  euroPerYear: tipEuroPerYear(
+    selectedTip,
+    household
+  ),
+
+  topsisScore,
+
+  reason,
+  eventType,
+
+  eventConfidence:
+    event?.confidence ?? null,
+
+  eventMagnitude:
+    event?.magnitude ?? null
+};
+}
 
 /**
  * Picks today's recommendation.
@@ -1528,9 +1802,10 @@ const RECENT_DAYS = 7;
  * @param {Array} expectedSeries  expected use per day, oldest first
  * @param {Array} readings        actual readings, same order and length
  * @param {Array} tips            candidates, each with `fuel` and `heating`
+ * @param {string} season current season
  * @returns {{ tip, reason, gasDrift, elecDrift }|null}
  */
-function dailyRecommendation(expectedSeries, readings, tips) {
+function dailyRecommendation(expectedSeries, readings, tips, season, household) {
   // A screen must never fail to render because advice could not be chosen.
   if (!expectedSeries?.length || !readings?.length || !tips?.length) return null;
 
@@ -1552,28 +1827,111 @@ function dailyRecommendation(expectedSeries, readings, tips) {
   // than that, so the home screen warned about under-heating and, on the same
   // screen, suggested turning the thermostat down. The feedback note of
   // 3 September 2026 caught it. Whatever the card says, the advice must agree.
-  const coldDays = readings.filter(
-    (r, i) => isBelowComfortFloor(expectedSeries[i].gas_m3, r.gas_m3)).length;
-  const underHeating = coldDays > 0;
+  const coldDays = readings.filter((r, i) => {
+  const expected = expectedSeries[i];
 
-  let reason;
-  let candidates;
-  if (underHeating) {
-    reason = 'comfort';
-    candidates = tips.filter((t) => !t.heating);
-  } else if (gasDrift >= elecDrift) {
-    reason = 'gas';
-    candidates = tips.filter((t) => t.fuel === 'gas');
-  } else {
-    reason = 'elec';
-    candidates = tips.filter((t) => t.fuel === 'elec');
+  if (!expected) {
+    return false;
   }
-  if (!candidates.length) candidates = tips;
 
-  // The day chooses between them, so the advice moves rather than repeating.
-  const index = dayOfYear(readings.at(-1).date) % candidates.length;
+  // Real data: ignore missing or partial rows
+  if (
+    r.quality_flag !== undefined &&
+    r.quality_flag !== 'ok'
+  ) {
+    return false;
+  }
 
-  return { tip: candidates[index], reason, gasDrift, elecDrift };
+  // Ignore missing gas values
+  if (
+    r.gas_m3 == null ||
+    !Number.isFinite(Number(r.gas_m3))
+  ) {
+    return false;
+  }
+
+  return isBelowComfortFloor(
+    expected.gas_m3,
+    Number(r.gas_m3)
+  );
+}).length;
+
+const underHeating = coldDays > 0;
+
+  let event;
+
+  if (gasDrift > 0 && gasDrift >= elecDrift) {
+    event = {
+      type: 'high_gas',
+      fuel: 'gas'
+    };
+  } else if (elecDrift > 0) {
+    event = {
+      type: 'high_electricity',
+      fuel: 'elec'
+    };
+  } else {
+    event = {
+      type: 'normal',
+      fuel: null
+    };
+  }
+  
+  const selected = selectTipForEvent(
+  event,
+  tips,
+  season,
+  underHeating,
+  household
+  );
+
+  if (!selected) {
+  return null;
+  }
+
+  return {
+  ...selected,
+  gasDrift,
+  elecDrift
+  };
+}
+function logAdviceExposure(
+  advice,
+  season,
+  household,
+  underHeating
+) {
+  if (!advice?.tip) return;
+
+  const exposure = {
+    timestamp: new Date().toISOString(),
+
+    tipId: advice.tip.id,
+    ruleVersion: advice.tip.version,
+    reason: advice.reason,
+
+    eventType: advice.eventType,
+    eventConfidence: advice.eventConfidence,
+    eventMagnitude: advice.eventMagnitude,
+
+    season,
+    underHeating,
+
+    household: {
+      occupants: household?.occupants,
+      rooms: household?.rooms,
+      floor: household?.floor,
+      buildPeriod: household?.buildPeriod,
+      energyLabel: household?.energyLabel
+    },
+
+    euroPerYear: advice.euroPerYear,
+    topsisScore: advice.topsisScore
+  };
+
+  console.log('Advice exposure:', exposure);
+
+  return exposure;
 }
 
 /** Why this tip, in the tenant's own terms. Never blames. */
@@ -1591,8 +1949,12 @@ function recommendationReason(reason, lang) {
       nl: 'Je stookt al zuinig. Dit advies gaat daarom niet over verwarmen.',
       en: 'You already heat sparingly, so this advice is not about heating.',
     },
+    general: {
+    nl: 'Je verbruik ligt op dit moment niet duidelijk hoger voor gas of stroom.',
+    en: 'Your usage is not clearly higher for either gas or electricity right now.',
+    },
   };
-  const entry = copy[reason] ?? copy.gas;
+  const entry = copy[reason] ?? copy.general;
   return entry[lang] ?? entry.nl;
 }
 
@@ -1635,6 +1997,17 @@ const HEATING_DAYS = HEATING_DAYS_PER_YEAR;
 const TIPS = Object.freeze([
   Object.freeze({
     id: 'thermostat', fuel: 'gas', heating: true,
+    version: 1,
+    priority: 3,
+    ease: 2,
+    source: {
+              organisation: 'Milieu Centraal',
+              title: 'Energie besparen met verwarmen'
+            },
+    conditions: {
+    event: 'high_gas',
+    seasons: ['autumn', 'winter']
+                },
     euroPerYear: THERMOSTAT_1C_EUR_PER_DAY * HEATING_DAYS,
     nl: { title: 'Thermostaat 1 graad lager',
           body: 'Van 20 naar 19 graden. Een trui scheelt meer dan je denkt.',
@@ -1645,7 +2018,17 @@ const TIPS = Object.freeze([
   }),
   Object.freeze({
     id: 'shower', fuel: 'gas', heating: false,
-    euroPerYear: 0.03 * PRICE_GAS_EUR_PER_M3 * 300,
+    version: 1,
+    priority: 2,
+    ease: 3,
+    source: {
+              organisation: 'Milieu Centraal',
+              title: 'Energie besparen met douchen'
+            },
+    conditions: {
+    event: 'high_gas'
+    },
+    euroPerYear: 0.03 * PRICE_GAS_EUR_PER_M3 * 300, 
     nl: { title: 'Drie minuten korter douchen',
           body: 'Van acht naar vijf minuten. Warm water is na verwarmen je grootste gaspost.',
           basis: '0,03 m3 gas per douchebeurt, 300 douchebeurten per jaar' },
@@ -1655,6 +2038,17 @@ const TIPS = Object.freeze([
   }),
   Object.freeze({
     id: 'unusedroom', fuel: 'gas', heating: true,
+    version: 1,
+    priority: 2,
+    ease: 2,
+    source: {
+              organisation: 'Milieu Centraal',
+              title: 'Energie besparen met verwarmen'
+            },
+    conditions: {
+    event: 'high_gas',
+    seasons: ['autumn', 'winter']
+    },
     euroPerYear: 0.05 * PRICE_GAS_EUR_PER_M3 * HEATING_DAYS,
     nl: { title: 'Radiator uit in een kamer die je niet gebruikt',
           body: 'Houd de deur dicht. Laat het nooit onder de 15 graden komen, anders krijg je vocht.',
@@ -1665,6 +2059,16 @@ const TIPS = Object.freeze([
   }),
   Object.freeze({
     id: 'coldwash', fuel: 'elec', heating: false,
+    version: 1,
+    priority: 2,
+    ease: 3,
+    source: {
+              organisation: 'Milieu Centraal',
+              title: 'Energie besparen met wassen'
+            },
+    conditions: {
+    event: 'high_electricity'
+      },
     euroPerYear: 0.4 * PRICE_ELEC_EUR_PER_KWH * 60,
     nl: { title: 'Was op 30 graden',
           body: 'Voor gewone was is 30 graden genoeg.',
@@ -1675,6 +2079,16 @@ const TIPS = Object.freeze([
   }),
   Object.freeze({
     id: 'standby', fuel: 'elec', heating: false,
+    version: 1,
+    priority: 2,
+    ease: 3,
+    source: {
+              organisation: 'Milieu Centraal',
+              title: 'Sluipverbruik voorkomen'
+            },
+    conditions: {
+    event: 'high_electricity'
+    },
     euroPerYear: 0.006 * 24 * 365 * PRICE_ELEC_EUR_PER_KWH,
     nl: { title: 'Apparaten echt uit in plaats van stand-by',
           body: 'Een stekkerdoos met schakelaar doet het werk voor je.',
@@ -1683,11 +2097,427 @@ const TIPS = Object.freeze([
           body: 'A power strip with a switch does the work for you.',
           basis: '6 watts of standby draw (router and TV), day and night' },
   }),
-]);
+Object.freeze({
+  id: 'ledlighting',
+  fuel: 'elec',
+  heating: false,
 
+  version: 1,
+  priority: 2,
+  ease: 2,
+
+  source: {
+    organisation: 'Milieu Centraal',
+    title: 'Energiezuinig verlichten: wat led je?'
+  },
+
+  conditions: {
+    event: 'high_electricity'
+  },
+
+  euroPerYear: 27,
+  
+
+  nl: {
+    title: 'Vervang oude lampen door ledlampen',
+    body: 'Vervang gloei- en halogeenlampen door zuinige ledlampen.',
+    basis: 'Voorbeeld van Milieu Centraal: 10 halogeenlampen en 1 gloeilamp vervangen door led bespaart ongeveer 127 kWh, oftewel €27 per jaar.'
+  },
+
+  en: {
+    title: 'Replace old bulbs with LED bulbs',
+    body: 'Replace incandescent and halogen bulbs with energy-efficient LED bulbs.',
+    basis: 'Milieu Centraal example: replacing 10 halogen bulbs and 1 incandescent bulb with LEDs saves about 127 kWh, or €27 per year.'
+  }
+}),
+Object.freeze({
+  id: 'curtains',
+  fuel: 'gas',
+  heating: true,
+
+  version: 1,
+  priority: 2,
+  ease: 3,
+  source: {
+            organisation: 'Milieu Centraal',
+            title: 'Gordijnen en warmteverlies'
+          },
+
+  conditions: {
+    event: 'high_gas',
+    seasons: ['autumn', 'winter']
+  },
+
+  euroPerYear: 30 *PRICE_GAS_EUR_PER_M3, 
+
+  nl: {
+    title: 'Doe \'s avonds de gordijnen dicht',
+    body: 'Gesloten gordijnen helpen warmte binnen te houden op koude dagen.',
+    basis: 'Ongeveer 30 m3 gas per jaar bij dubbel glas en gewone gordijnen'
+  },
+
+  en: {
+    title: 'Close the curtains in the evening',
+    body: 'Closed curtains can help keep heat inside on cold days.',
+    basis: 'About 30 m3 of gas per year with double glazing and ordinary curtains'
+  }
+}),
+Object.freeze({
+  id: 'closeddoors',
+  fuel: 'gas',
+  heating: true,
+
+  version: 1,
+  priority: 2,
+  ease: 3,
+  source: {
+  organisation: 'Milieu Centraal',
+  title: 'Energie besparen met verwarmen'
+            },
+
+  conditions: {
+    event: 'high_gas',
+    seasons: ['autumn', 'winter']
+  },
+
+  euroPerYear:  (80 / 1.37) * PRICE_GAS_EUR_PER_M3,
+
+  nl: {
+    title: 'Verwarm alleen de kamers die je gebruikt',
+    body: 'Zet de verwarming lager of uit in kamers waar je niet bent en houd de deuren dicht.',
+   basis: 'Ongeveer 58,4 m3 gas per jaar, gebaseerd op €80 besparing bij €1,37 per m3 gas'
+  },
+
+  en: {
+    title: 'Only heat the rooms you use',
+    body: 'Turn the heating down or off in rooms you are not using and keep the doors closed.',
+    basis: 'About 58.4 m3 of gas per year, based on an €80 saving at €1.37 per m3 of gas'
+  }
+}),
+Object.freeze({
+  id: 'radiatorfoil',
+
+  fuel: 'gas',
+  heating: true,
+
+  version: 1,
+
+  priority: 2,
+  ease: 2,
+  comfortImpact: 3,
+
+  source: {
+    organisation: 'Milieu Centraal',
+    title: 'Radiatorfolie'
+  },
+
+  conditions: {
+    event: 'high_gas',
+    seasons: ['autumn', 'winter'],
+    energyLabels: ['D', 'E', 'F', 'G']
+  },
+
+  euroPerYear: 25,
+
+  nl: {
+    title: 'Plaats radiatorfolie',
+    body: 'Radiatorfolie helpt voorkomen dat warmte via de buitenmuur verloren gaat.',
+    basis: 'Geschatte jaarlijkse besparing bij geschikte buitenmuren.'
+  },
+
+  en: {
+    title: 'Install radiator foil',
+    body: 'Radiator foil can reduce heat loss through an outside wall.',
+    basis: 'Estimated annual saving for suitable external walls.'
+  }
+}),
+Object.freeze({
+  id: 'watersavingshower',
+  fuel: 'gas',
+  heating: false,
+
+  version: 1,
+  priority: 2,
+  ease: 2,
+
+  source: {
+    organisation: 'Milieu Centraal',
+    title: 'Waterbesparende douchekop'
+  },
+
+  conditions: {
+    event: 'high_gas'
+  },
+
+  euroPerPersonPerYear: 25,
+  
+
+  nl: {
+    title: 'Gebruik een waterbesparende douchekop',
+    body: 'Een waterbesparende douchekop gebruikt maximaal 7,2 liter water per minuut.',
+    basis: 'Bespaart ongeveer €25 per persoon per jaar.'
+  },
+
+  en: {
+    title: 'Use a water-saving shower head',
+    body: 'A water-saving shower head uses a maximum of 7.2 litres of water per minute.',
+    basis: 'Saves about €25 per person per year.'
+  }
+}),
+Object.freeze({
+  id: 'nightthermostat',
+  fuel: 'gas',
+  heating: true,
+
+  version: 1,
+  priority: 3,
+  ease: 3,
+
+  source: {
+    organisation: 'Milieu Centraal',
+    title: 'Bespaartips verwarming'
+  },
+
+  conditions: {
+    event: 'high_gas',
+    seasons: ['autumn', 'winter']
+  },
+
+  euroPerYear: 60,
+
+  nl: {
+    title: 'Zet de thermostaat lager als je slaapt',
+    body: 'Verlaag de temperatuur voordat je naar bed gaat.',
+    basis:'Volgens Milieu Centraal bespaart de thermostaat ’s nachts op 15 graden zetten ongeveer €60 per jaar.'
+  },
+
+  en: {
+    title: 'Lower the thermostat at night',
+    body: 'Reduce the temperature before going to bed.',
+    basis:'According to Milieu Centraal, setting the thermostat to 15°C at night saves about €60 per year.'
+  }
+}),
+]);
+function runAdviceTests() {
+  function check(name, condition) {
+    console.assert(condition, `TEST FAILED: ${name}`);
+
+    if (condition) {
+      console.log(`PASS: ${name}`);
+    }
+  }
+  const showerHead = TIPS.find(
+  (tip) => tip.id === 'watersavingshower'
+  );
+
+    let result = selectTipForEvent(
+    { type: 'high_gas' },
+    [showerHead],
+    'winter',
+    false,
+    { occupants: 3 }
+  );
+  check(
+    'shower head saving scales with occupants',
+    result?.euroPerYear === 75
+  );
+  const topsisTestTips = [
+    {
+      id: 'strong',
+      euroPerYear: 100,
+      savingVerified: true,
+      ease: 3,
+      priority: 3
+    },
+    {
+      id: 'weak',
+      euroPerYear: 10,
+      savingVerified: true,
+      ease: 1,
+      priority: 1
+    }
+  ];
+
+  const topsisResult = rankTipsTOPSIS(
+    topsisTestTips,
+    { occupants: 1 }
+  );
+
+  check(
+    'TOPSIS ranks stronger tip first',
+    topsisResult[0]?.tip?.id === 'strong'
+  );
+  // 1. High gas event -> gas tip
+   result = selectTipForEvent(
+    { type: 'high_gas' },
+    TIPS,
+    'winter',
+    false
+  );
+
+  check(
+    'high gas returns gas tip',
+    result?.tip?.fuel === 'gas'
+  );
+
+
+  // 2. High electricity event -> electricity tip
+  result = selectTipForEvent(
+    { type: 'high_electricity' },
+    TIPS,
+    'winter',
+    false
+  );
+
+  check(
+    'high electricity returns electricity tip',
+    result?.tip?.fuel === 'elec'
+  );
+
+
+  // 3. No detected event -> no personalised tip
+  result = selectTipForEvent(
+    null,
+    TIPS,
+    'winter',
+    false
+  );
+
+  check(
+    'no event returns no personalised recommendation',
+    result === null
+  );
+
+
+  // 4. Under-heating must block heating-reduction advice
+  result = selectTipForEvent(
+    { type: 'high_gas' },
+    TIPS,
+    'winter',
+    true
+  );
+
+  check(
+    'under-heating blocks heating tips',
+    result === null || result.tip.heating === false
+  );
+
+
+  // 5. Thermostat tip allowed in winter
+  const thermostat = TIPS.find(
+    (tip) => tip.id === 'thermostat'
+  );
+
+  result = selectTipForEvent(
+    { type: 'high_gas' },
+    [thermostat],
+    'winter',
+    false
+  );
+
+  check(
+    'thermostat allowed in winter',
+    result?.tip?.id === 'thermostat'
+  );
+
+
+  // 6. Thermostat tip blocked in summer
+  result = selectTipForEvent(
+    { type: 'high_gas' },
+    [thermostat],
+    'summer',
+    false
+  );
+
+  check(
+    'thermostat blocked in summer',
+    result === null
+  );
+
+
+  // 7. Event metadata should be preserved
+  result = selectTipForEvent(
+    {
+      type: 'high_gas',
+      confidence: 0.91,
+      magnitude: 5.2
+    },
+    TIPS,
+    'winter',
+    false
+  );
+
+  check(
+    'event metadata is preserved',
+    result?.eventConfidence === 0.91 &&
+    result?.eventMagnitude === 5.2
+  );
+
+
+  // 8. Every rule should be selectable
+  TIPS.forEach((tip) => {
+    const eventType = tip.conditions?.event;
+
+    const season =
+      tip.conditions?.seasons?.includes('winter')
+        ? 'winter'
+        : 'summer';
+
+    const ruleResult = selectTipForEvent(
+      { type: eventType },
+      [tip],
+      season,
+      false,
+      {
+        occupants: 1,
+        energyLabel: 'E'
+      }
+    );
+
+    check(
+      `rule ${tip.id} can be selected`,
+      ruleResult?.tip?.id === tip.id
+    );
+  });
+
+
+  // 9. chooseEventForAdvice should pick the newest event
+  result = chooseEventForAdvice([
+    {
+      type: 'high_gas',
+      start: '2013-01-16'
+    },
+    {
+      type: 'high_gas',
+      start: '2013-03-12'
+    }
+  ]);
+
+  check(
+    'most recent event is chosen',
+    result?.start === '2013-03-12'
+  );
+
+
+  // 10. Empty event list should return null
+  result = chooseEventForAdvice([]);
+
+  check(
+    'empty event list returns null',
+    result === null
+  );
+
+  console.log('Advice tests finished');
+}
+
+runAdviceTests(); //for testing purposes  
 /** Tips ranked by yearly saving, largest first. */
-function rankedTips() {
-  return [...TIPS].sort((a, b) => b.euroPerYear - a.euroPerYear);
+function rankedTips(household) {
+  return [...TIPS].sort(
+    (a, b) =>
+      tipEuroPerYear(b, household) -
+      tipEuroPerYear(a, household)
+  );
 }
 
 // ---- js/data/notifications.js ----
@@ -1888,6 +2718,7 @@ function defaultState() {
       floor: 1,
       buildPeriod: '1975-1990',
       occupants: 1,
+      energyLabel: HOUSEHOLD.energyLabel
     },
     shieldsUsed: 0,
 
@@ -3405,8 +4236,30 @@ function renderHome(app, state, lang) {
   const stageName = stage[lang] || stage.nl;
   // Chosen from this household's own recent readings, and never a
   // turn-the-heating-down tip for someone already under the comfort floor.
-  const advice = dailyRecommendation(app.expectedSeries, readings, TIPS);
-  const topTip = advice ? advice.tip : rankedTips()[0];
+  const event = chooseEventForAdvice(
+  detectedEventsForAdvice
+  );
+
+  const underHeating = app.floorDays > 0;
+
+  const advice = selectTipForEvent(
+    event,
+    TIPS,
+    app.season,
+    underHeating,
+    state.home    );
+  if (advice) {
+  logAdviceExposure(
+  advice,
+  app.season,
+  state.home,
+  underHeating
+    );
+  }
+  const topTip = advice
+    ? advice.tip
+
+    : rankedTips(state.home)[0];
 
   // Euro stays visually dominant (Report 6's survey: 69.6% preferred euros);
   // kWh and m3 sit underneath, smaller, per the demonstrator brief.
@@ -3420,7 +4273,7 @@ function renderHome(app, state, lang) {
     + '<span class="tip-kicker">' + say('Tip van vandaag', 'Today’s tip', lang) + '</span>'
     + '<span class="tip-title">' + topTip[lang].title + '</span>'
     + (advice ? '<span class="tip-why">' + recommendationReason(advice.reason, lang) + '</span>' : '')
-    + '<span class="tip-points">+' + toPoints(topTip.euroPerYear / 365) + ' '
+    + '<span class="tip-points">+' + toPoints( tipEuroPerYear(topTip, state.home) / 365) + ' '
     + say('punten per dag', 'points a day', lang) + '</span></button>';
 
   const bar = progress.next
@@ -3549,8 +4402,8 @@ function renderTips(app, state, lang) {
     'Je advies van vandaag staat op Start en is gekozen op jouw eigen verbruik. Dit is de volledige lijst, op volgorde van wat het gemiddeld oplevert. Je kunt ze niet optellen: alles tegelijk doen levert niet de som op.',
     'Your recommendation for today is on Home, chosen from your own use. This is the full list, ordered by what it saves on average. They do not add up: doing everything at once does not save the total.', lang);
 
-  const items = rankedTips().map((t) => card(t[lang].title,
-    '<p class="tip-euro">' + euro(t.euroPerYear) + ' ' + say('per jaar', 'a year', lang) + '</p>'
+  const items = rankedTips(state.home).map((t) => card(t[lang].title,
+    '<p class="tip-euro">' + euro(tipEuroPerYear(t, state.home)) + ' ' + say('per jaar', 'a year', lang) + '</p>'
     + '<p class="note">' + say(
         'Geschat voor een woning zoals die van jou. Wat jij bespaart hangt af van je eigen verbruik.',
         'Estimated for a home like yours. What you save depends on your own use.', lang) + '</p>'
@@ -3669,6 +4522,154 @@ function renderProfile(app, state, lang) {
         + '<p class="note">' + floorNote + '</p>');
 }
 
+// ---- event detection tab ----
+// The event screen only depends on the small API contract.
+const EVT_API_BASE = window.EVS_EVENT_API_BASE_URL || 'http://127.0.0.1:8000';
+let detectedEventsForAdvice = [];
+const EVT_COLORS = Object.freeze({
+  high_electricity: '#F2B705',
+  high_gas: '#B3261E',
+});
+
+function renderEventDetection() {
+  return '<section id="evt-detection" data-view="event-detection">'
+    + '<h2>Daily event detection</h2>'
+    + '<p class="note">The initial rules compare daily electricity with a household baseline and daily gas with a temperature-aware baseline. They describe unusual consumption patterns without attributing them to an appliance.</p>'
+    + '<section class="card"><h3>Detection controls</h3><div class="evt-controls">'
+    + '<label class="evt-control">Dataset<select id="evt-dataset"><option value="zonnedael">Zonnedael (daily)</option><option value="gridflex_heeten" disabled>GridFlex Heeten (not available)</option></select></label>'
+    + '<label class="evt-control">Household<select id="evt-household"><option value="">Loading households...</option></select></label>'
+    + '<label class="evt-control">From<input id="evt-from" type="datetime-local"></label>'
+    + '<label class="evt-control">To<input id="evt-to" type="datetime-local"></label>'
+    + '<label class="evt-control">Method<select id="evt-module"><option value="nilm">Documented baseline rules</option><option value="anomaly" disabled>Anomaly detection (not implemented)</option></select></label>'
+    + '</div><div class="evt-actions"><button class="btn" id="evt-run">Run rules</button></div></section>'
+    + '<p id="evt-status" class="evt-status">Ready. Backend: ' + escapeHtml(EVT_API_BASE) + '</p>'
+    + '<section class="card"><h3>Daily electricity</h3><p class="evt-muted">Missing and partial readings appear as gaps and are excluded from detection. Gas events are marked by date on this shared timeline.</p><div id="evt-chart" class="evt-chart"><p class="evt-muted">No daily series loaded.</p></div><div id="evt-legend" class="evt-legend"></div></section>'
+    + '<section class="card"><h3>Detected patterns</h3><div class="evt-table-wrap"><table class="evt-table"><thead><tr>'
+    + '<th><button data-evt-sort="type">Type</button></th><th><button data-evt-sort="start">Time</button></th><th><button data-evt-sort="magnitude">Size</button></th><th><button data-evt-sort="confidence">Confidence</button></th></tr></thead><tbody id="evt-events"><tr><td colspan="4" class="evt-muted">No events loaded.</td></tr></tbody></table></div></section>'
+    + '<section class="card"><h3>Test the detection rules</h3><p class="evt-evaluation-explainer"><strong>This is a developer check, not a household result.</strong><br>It runs the same rules on prepared examples where the expected synthetic changes are known. This helps us measure whether the rules find unusual use without confusing missing data for behaviour.</p><p class="evt-evaluation-meta"><strong>Fixture household:</strong> Klant 34 &middot; <strong>Scenarios:</strong> synthetic test files</p><div class="evt-controls"><label class="evt-control">Test case<select id="evt-scenario"><option value="high_use">High use: four injected gas increases</option><option value="normal">Normal use: no injected events</option><option value="missing">Missing data: gaps and partial readings</option><option value="incomplete">Short history: ten days only</option></select></label></div><button class="btn ghost evt-evaluate" id="evt-evaluate">Run test case for Klant 34</button><p id="evt-evaluation-source" class="evt-muted">No test case run yet.</p><div id="evt-metrics" class="evt-metric-grid"></div><div id="evt-quality" class="evt-quality"></div></section>'
+    + '</section>';
+}
+
+function evtDate(value) {
+  return value ? new Date(value).toLocaleString() : '-';
+}
+
+function evtLabel(type) {
+  return { high_electricity: 'High electricity use', high_gas: 'High gas use' }[type] || type;
+}
+
+function evtPercent(value) {
+  return Math.round(value * 100) + '%';
+}
+
+function evtRequest(container) {
+  const value = (id) => container.querySelector('#' + id).value;
+  return {
+    dataset: value('evt-dataset'), household: value('evt-household'),
+    range_start: value('evt-from') || null, range_end: value('evt-to') || null,
+    module: value('evt-module'), method: 'rules', scenario: value('evt-scenario'),
+  };
+}
+
+function evtDrawChart(chart, legend, points, events, selectedId) {
+  if (!points.length) { chart.innerHTML = '<p class="evt-muted">No series loaded. Connect the data service to see the curve.</p>'; legend.innerHTML = ''; return; }
+  const width = 640; const height = 180; const pad = 18;
+  const values = points.map((p) => Number.isFinite(p.electricity_kwh) ? p.electricity_kwh : null);
+  const numericValues = values.filter((v) => v !== null);
+  if (!numericValues.length) { chart.innerHTML = '<p class="evt-muted">No valid electricity readings in this range.</p>'; legend.innerHTML = ''; return; }
+  const max = Math.max(...numericValues, 1); const min = Math.min(...numericValues, 0);
+  const x = (i) => pad + i * (width - pad * 2) / Math.max(1, points.length - 1);
+  const y = (v) => height - pad - (v - min) * (height - pad * 2) / Math.max(1, max - min);
+  let path = '';
+  values.forEach((value, index) => {
+    if (value === null) return;
+    const previous = index > 0 ? values[index - 1] : null;
+    path += (previous === null ? 'M' : 'L') + x(index).toFixed(1) + ' ' + y(value).toFixed(1) + ' ';
+  });
+  const markers = events.map((event) => {
+    const index = points.findIndex((point) => new Date(point.timestamp) >= new Date(event.start));
+    if (index < 0 || values[index] === null) return '';
+    const color = EVT_COLORS[event.type] || '#4a5a50';
+    const selected = event.id === selectedId;
+    return '<circle cx="' + x(index).toFixed(1) + '" cy="' + y(values[index]).toFixed(1) + '" r="' + (selected ? 7 : 5) + '" fill="' + color + '" stroke="' + (selected ? '#1A1A1A' : '#fff') + '" stroke-width="2"><title>' + escapeHtml(event.type + ' ' + event.magnitude + ' ' + event.confidence) + '</title></circle>';
+  }).join('');
+  chart.innerHTML = '<svg viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="Electricity load curve with detected events"><path d="' + path + '" fill="none" stroke="#1F4128" stroke-width="2" stroke-linejoin="round"/>' + markers + '</svg>';
+  const types = [...new Set(events.map((event) => event.type))];
+  legend.innerHTML = types.map((type) => '<span class="evt-key"><span class="evt-swatch" style="background:' + (EVT_COLORS[type] || '#4a5a50') + '"></span>' + escapeHtml(type) + '</span>').join('');
+}
+
+function mountEventDetection(container) {
+  let points = []; let events = []; let selectedId = null; let sortBy = 'start'; let sortAscending = true;
+  const status = container.querySelector('#evt-status');
+  const chart = container.querySelector('#evt-chart');
+  const legend = container.querySelector('#evt-legend');
+  const table = container.querySelector('#evt-events');
+  const setStatus = (text, warning = false) => { status.textContent = text; status.classList.toggle('warn', warning); };
+  const loadHouseholds = async () => {
+    const householdSelect = container.querySelector('#evt-household');
+    try {
+      const response = await fetch(EVT_API_BASE + '/datasets');
+      if (!response.ok) throw new Error('Datasets HTTP ' + response.status);
+      const datasets = await response.json();
+      const dataset = datasets.find((item) => item.id === 'zonnedael');
+      const households = dataset?.households || [];
+      householdSelect.innerHTML = households.map((household) => '<option value="' + escapeHtml(household) + '">' + escapeHtml(household) + '</option>').join('');
+      if (!households.length) throw new Error('No included households returned');
+      householdSelect.value = households.includes('Klant 34') ? 'Klant 34' : households[0];
+    } catch (error) {
+      householdSelect.innerHTML = '<option value="Klant 34">Klant 34</option>';
+      setStatus('Could not load the household list. Using Klant 34: ' + error.message, true);
+    }
+  };
+  const draw = () => {
+    const sorted = [...events].sort((a, b) => String(a[sortBy]).localeCompare(String(b[sortBy]), undefined, { numeric: true }) * (sortAscending ? 1 : -1));
+    table.innerHTML = sorted.length ? sorted.map((event) => '<tr class="' + (event.id === selectedId ? 'evt-selected' : '') + '" data-evt-id="' + escapeHtml(event.id) + '"><td>' + escapeHtml(evtLabel(event.type)) + '</td><td>' + evtDate(event.start) + '</td><td>' + escapeHtml(String(event.magnitude)) + '</td><td>' + Math.round(event.confidence * 100) + '%</td></tr>').join('') : '<tr><td colspan="4" class="evt-muted">No unusual patterns detected.</td></tr>';
+    evtDrawChart(chart, legend, points, events, selectedId);
+  };
+  const run = async (evaluate) => {
+    setStatus('Loading event detection...');
+    try {
+      const request = evtRequest(container);
+      // Evaluation always uses the prepared Klant 34 fixture.
+      const evaluationRequest = evaluate
+        ? Object.assign({}, request, { household: 'Klant 34' })
+        : request;
+      const query = new URLSearchParams({
+        dataset: request.dataset,
+        household: evaluationRequest.household,
+      });
+      if (evaluationRequest.range_start) query.set('range_start', evaluationRequest.range_start);
+      if (evaluationRequest.range_end) query.set('range_end', evaluationRequest.range_end);
+      const seriesResponse = await fetch(EVT_API_BASE + '/series?' + query.toString());
+      if (!seriesResponse.ok) throw new Error('Series HTTP ' + seriesResponse.status);
+      points = await seriesResponse.json();
+      draw();
+      // Detection and evaluation use the same selected date range.
+      const endpoint = evaluate ? '/evaluate' : '/detect';
+      const response = await fetch(EVT_API_BASE + endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(evaluationRequest) });
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      const result = await response.json();
+      if (evaluate) {
+        container.querySelector('#evt-evaluation-source').innerHTML = escapeHtml(result.source) + '<br><span class="evt-muted">Matching tolerance: +/- ' + result.tolerance_minutes + ' minutes.</span>';
+        container.querySelector('#evt-metrics').innerHTML = result.metrics.length ? result.metrics.map((metric) => '<div class="evt-metric"><strong>' + escapeHtml(evtLabel(metric.event_type)) + '</strong><span>Precision: ' + evtPercent(metric.precision) + ' &middot; Recall: ' + evtPercent(metric.recall) + ' &middot; F1: ' + evtPercent(metric.f1) + '</span><span>Detected: ' + metric.detected + ' &middot; Synthetic expected: ' + metric.ground_truth + ' &middot; Matched: ' + metric.matched + '</span></div>').join('') : '<p class="evt-muted">No expected or detected events in this test case.</p>';
+        container.querySelector('#evt-quality').innerHTML = result.data_quality.length ? '<p><strong>Data quality findings: ' + result.data_quality.length + '</strong></p><ul>' + result.data_quality.map((issue) => '<li>' + escapeHtml(issue.date.slice(0, 10) + ': ' + issue.status + ' - ' + issue.details) + '</li>').join('') + '</ul>' : '<p class="evt-muted">No missing or partial readings in this scenario.</p>';
+      } else {
+        events = result; detectedEventsForAdvice = result; selectedId = null; draw(); const qualityCount = points.filter((point) => point.quality_flag !== 'ok').length; setStatus(events.length ? events.length + ' patterns found across ' + points.length + ' daily readings.' + (qualityCount ? ' ' + qualityCount + ' incomplete readings excluded.' : '') : 'No unusual patterns found across ' + points.length + ' daily readings.' + (qualityCount ? ' ' + qualityCount + ' incomplete readings excluded.' : ''));
+      }
+    } catch (error) { setStatus('Backend offline or unavailable: ' + error.message, true); }
+  };
+  container.querySelector('#evt-run').addEventListener('click', () => run(false));
+  container.querySelector('#evt-evaluate').addEventListener('click', () => run(true));
+  container.addEventListener('click', (event) => {
+    const sort = event.target.closest('[data-evt-sort]')?.dataset.evtSort;
+    if (sort) { if (sortBy === sort) sortAscending = !sortAscending; else { sortBy = sort; sortAscending = true; } draw(); return; }
+    const row = event.target.closest('[data-evt-id]');
+    if (row) { selectedId = row.dataset.evtId; draw(); }
+  });
+  draw();
+  loadHouseholds();
+}
+
 /**
  * The five buttons along the bottom - Report 6's original design, validated
  * with its 23-respondent survey, and the shape this group asked to return to.
@@ -3677,13 +4678,14 @@ function renderProfile(app, state, lang) {
  * five, so nothing is lost: Goals from the level chip on Home and from
  * Profile, and Settings, Messages and Info from Profile.
  */
-const BOTTOM_TABS = Object.freeze(['home', 'savings', 'challenges', 'tips', 'profile']);
+const BOTTOM_TABS = Object.freeze(['home', 'savings', 'challenges', 'tips', 'event-detection', 'profile']);
 
 const TABS = Object.freeze([
   Object.freeze({ id: 'home', icon: '\u{1F333}', nl: 'Start', en: 'Home', render: renderHome }),
   Object.freeze({ id: 'savings', icon: '\u{1F4B6}', nl: 'Besparing', en: 'Savings', render: renderSavings }),
   Object.freeze({ id: 'challenges', icon: '\u{1F3AF}', nl: 'Uitdagingen', en: 'Challenges', render: renderChallenges }),
   Object.freeze({ id: 'tips', icon: '\u{1F4A1}', nl: 'Tips', en: 'Tips', render: renderTips }),
+  Object.freeze({ id: 'event-detection', icon: '\u{26A1}', nl: 'Events', en: 'Events', render: renderEventDetection }),
   Object.freeze({ id: 'levels', icon: '\u{1F331}', nl: 'Doelen', en: 'Goals', render: renderLevels }),
   Object.freeze({ id: 'profile', icon: '\u{1F464}', nl: 'Profiel', en: 'Profile', render: renderProfile }),
   // The remaining drawer entries the brief lists (section 3).
@@ -4121,6 +5123,7 @@ function start(getApp, store) {
     const title = tab[state.language] || tab.nl;
     bar.innerHTML = header(title, state.language);
     screen.innerHTML = tab.render(app, state, state.language) + footerNote(app, state.language);
+    if (active === 'event-detection') mountEventDetection(screen);
     // Outside #screen, so the bar stays put while the content scrolls.
     tabs.innerHTML = tabBar(active, state.language);
     nav.innerHTML = infoOpen ? infoSheet(active, title, state.language) : '';
